@@ -1,0 +1,6 @@
+{
+  "name": "exp-domain-expert",
+  "version": "2.0.0",
+  "description": "Product domain expert for Optimizely Experimentation (Web, Feature Flags, Edge, Opal Chat). Provides deep product knowledge from 12+ dev repos (flags, visual-editor, opal-tools, edge-delivery, permission-service, change-history, datafile-build-service, datafile-access-tokens, and more) to support QA test writing, ticket analysis, and product understanding.",
+  "skills": ["./skills"]
+}

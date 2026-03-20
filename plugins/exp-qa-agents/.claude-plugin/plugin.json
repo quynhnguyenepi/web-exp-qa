@@ -1,0 +1,6 @@
+{
+  "name": "exp-qa-agents",
+  "version": "4.0.0",
+  "description": "Agent-style QA skills for Optimizely Experimentation. Each skill orchestrates parallel sub-tasks via common-qa domain expert sub-skills.",
+  "skills": ["./skills"]
+}

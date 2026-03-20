@@ -1,0 +1,6 @@
+{
+  "name": "common-qa",
+  "version": "3.0.0",
+  "description": "Reusable QA sub-skills (domain experts for JIRA, Confluence, Figma, PRs, attachments, repo docs) and utilities shared across Optimizely products.",
+  "skills": ["./skills"]
+}

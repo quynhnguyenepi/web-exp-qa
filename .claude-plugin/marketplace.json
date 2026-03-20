@@ -1,0 +1,25 @@
+{
+  "name": "optimizely-qa",
+  "description": "Optimizely QA skills marketplace -- agent-style orchestration with parallel sub-skill dispatch",
+  "owner": {
+    "name": "Phuong Anh Phan",
+    "email": "phuonganh.phan@optimizely.com"
+  },
+  "plugins": [
+    {
+      "name": "exp-qa-agents",
+      "source": "./plugins/exp-qa-agents",
+      "description": "Agent-style QA skills for Optimizely Experimentation (Web, Flags, Edge) with parallel sub-task dispatch"
+    },
+    {
+      "name": "common-qa",
+      "source": "./plugins/common-qa",
+      "description": "Reusable QA sub-skills (domain experts) and utilities shared across Optimizely products"
+    },
+    {
+      "name": "exp-domain-expert",
+      "source": "./plugins/exp-domain-expert",
+      "description": "Product domain knowledge for Optimizely Experimentation (Web, Feature Flags, Edge, Opal Chat) from 12+ dev repos and official documentation"
+    }
+  ]
+}

@@ -1,0 +1,107 @@
+{
+  "mcpServers": {
+    "atlassian": {
+      "command": "${UVX_PATH}",
+      "args": [
+        "--python", "${PYTHON3_PATH}",
+        "mcp-atlassian",
+        "--jira-url",
+        "https://optimizely-ext.atlassian.net",
+        "--jira-username",
+        "${JIRA_USERNAME}",
+        "--jira-token",
+        "${JIRA_API_TOKEN}",
+        "--confluence-url",
+        "https://optimizely-ext.atlassian.net/wiki",
+        "--confluence-username",
+        "${JIRA_USERNAME}",
+        "--confluence-token",
+        "${JIRA_API_TOKEN}"
+      ]
+    },
+    "github": {
+      "command": "${NPX_PATH}",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}",
+        "PATH": "${NODE_BIN_DIR}:/usr/bin:/bin:/usr/sbin:/sbin"
+      }
+    },
+    "figma": {
+      "type": "stdio",
+      "command": "${NPX_PATH}",
+      "args": [
+        "-y",
+        "mcp-figma"
+      ],
+      "env": {
+        "FIGMA_PERSONAL_ACCESS_TOKEN": "${FIGMA_PERSONAL_ACCESS_TOKEN}",
+        "PATH": "${NODE_BIN_DIR}:/usr/bin:/bin:/usr/sbin:/sbin"
+      }
+    },
+    "chrome-devtools": {
+      "command": "${NPX_PATH}",
+      "args": [
+        "-y",
+        "chrome-devtools-mcp@latest"
+      ],
+      "env": {
+        "PATH": "${NODE_BIN_DIR}:/usr/bin:/bin:/usr/sbin:/sbin"
+      }
+    },
+    "playwrightA": {
+      "type": "stdio",
+      "command": "${NPX_PATH}",
+      "args": [
+        "-y",
+        "@playwright/mcp@latest",
+        "--headless"
+      ],
+      "env": {
+        "PATH": "${NODE_BIN_DIR}:/usr/bin:/bin:/usr/sbin:/sbin"
+      }
+    },
+    "playwrightB": {
+      "type": "stdio",
+      "command": "${NPX_PATH}",
+      "args": [
+        "-y",
+        "@playwright/mcp@latest",
+        "--headless"
+      ],
+      "env": {
+        "PATH": "${NODE_BIN_DIR}:/usr/bin:/bin:/usr/sbin:/sbin"
+      }
+    },
+    "context7": {
+      "type": "stdio",
+      "command": "${NPX_PATH}",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp",
+        "--api-key",
+        "${CONTEXT7_API_KEY}"
+      ],
+      "env": {
+        "PATH": "${NODE_BIN_DIR}:/usr/bin:/bin:/usr/sbin:/sbin"
+      }
+    },
+    "serena": {
+      "command": "${UVX_PATH}",
+      "args": [
+        "--python", "${PYTHON3_PATH}",
+        "--from",
+        "git+https://github.com/oraios/serena",
+        "serena",
+        "start-mcp-server",
+        "--context",
+        "claude-code",
+        "--project",
+        "${SERENA_PROJECT_PATH}"
+      ]
+    }
+  }
+}

@@ -1,12 +1,18 @@
-# Credentials — KHONG commit file nay
+# Credentials — KHONG commit
 .mcp.json
+.env
+.claude/settings.local.json
 
 # OS
 .DS_Store
 
-# Editor
-.vscode/
+# Node
+node_modules/
+*.log
+
+# Editor local config
 .idea/
+.vscode/
 
 # Serena local config
 .serena/

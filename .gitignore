@@ -1,0 +1,12 @@
+# Credentials — KHONG commit file nay
+.mcp.json
+
+# OS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+
+# Serena local config
+.serena/

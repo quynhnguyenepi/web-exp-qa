@@ -673,3 +673,86 @@
 - Variations listed by NAME + numeric ID
 - **NO snake_case API names for variations** — only Events and Pages have snake_case
 - Example: "Section 1" → ID: 4677512966438912
+
+---
+
+## Global Context & Side-Effects
+
+> **Scope**: Cross-repo — Visual Editor (`optimizely/visual-editor`), Monolith (`optimizely/optimizely`), Opal Tools (`opal-tools`)
+> **Last Updated**: 2026-03-23
+
+### Visual Editor — Browser Globals
+
+| Global / API | Defined In | Purpose | Side-Effects | Interacts With |
+|---|---|---|---|---|
+| `window.optimizely` | Customer website (snippet) | Optimizely SDK object — provides `get('utils')`, `get('client-change-applier')` | Read-only from VE; used to apply changes via `change_handler.js` | `modules/change_handler.js`, `modules/changes.ts` |
+| `window.React` / `window.ReactDOM` | `utils/initFederationReactAndShare.ts` | Shared via Module Federation (`provideToShareScope`) — prevents duplicate React instances | Overrides customer site React if not already present; may conflict if customer already has React | `lazy_opal_chat.tsx`, Module Federation config |
+| `window.requestIdleCallback` | `App.tsx` | Mounts VE render root with 2s timeout fallback | Polyfilled if absent; delays VE mount on low-power devices | `App.tsx` (init) |
+| `window.sessionStorage` | `services/api/auth.ts` | Stores OAuth2 token after handshake | Token persists across page navigations within session; cleared on browser close | `authStore.ts`, all API services |
+| `window.localStorage` | `components/common/opal-chat/` | Stores Opal Chat URLs (endpoint config) | Persists across sessions; stale URLs cause Opal to fail silently | `opalChatStore.ts`, `lazy_opal_chat.tsx` |
+| `window.dispatchEvent` | Multiple VE components | Custom events: Opal response events, VE lifecycle events | Fires cross-component events that bypass React state — hard to trace in tests | `useOpalEvents.ts`, `useOpalPromptQueue.ts` |
+| `window.getComputedStyle` | `modules/changes.ts`, style managers | Reads computed CSS values from customer DOM | Read-only; fails silently if element removed from DOM | `StyleManager`, `BackgroundManager`, `BorderManager` |
+| `window.scrollTo` / `window.scrollY` | `hooks/useDraggable.ts`, element scroll | Scrolls customer page during element drag / selector targeting | Modifies customer page scroll position directly | `LayoutManager`, element targeting |
+| `window.screen` | `components/device_selector/Overlay.tsx` | Positions device preview popup window | Opens new browser window — blocked by popup blockers | `DeviceSelector.tsx` |
+| `#opti-frozen-styles` (DOM element) | `hooks/useSiteFreeze.ts` | Injects `<style>` tag to freeze customer page scroll/interaction | Mutates customer page `<head>` — may conflict with customer CSS | `App.tsx` (useSiteFreeze) |
+| Shadow DOM root (`#optimizely-editor`) | `App.tsx` | Isolates VE UI from customer page styles | Creates Shadow DOM boundary — some CSS selectors fail across boundary | All VE UI components |
+
+### Monolith — Browser Globals & postMessage
+
+| Global / API | Defined In | Purpose | Side-Effects | Interacts With |
+|---|---|---|---|---|
+| `window.postMessage` | `modules/editor_iframe/` | Sends messages from Monolith to VE iframe | Cross-origin; origin must match — mismatch causes silent failure | `modules/editor_client.js` (VE receiver) |
+| `window.postMessage` (VE → Monolith) | `modules/editor_client.js` | VE sends save/exit/status back to Monolith | Async — Monolith must be listening; missed messages = UI out of sync | `editor_iframe_store.js` (Monolith receiver) |
+
+### Opal Tools — Server-Side Side-Effects
+
+| Function / Endpoint | File | Purpose | Side-Effects | Interacts With |
+|---|---|---|---|---|
+| `POST /interactions/save-changes` | `src/` interaction handlers | Opal applies AI-generated changes to experiment variation | Writes directly to Frontdoor API — bypasses VE change validation | `changeStore.ts` (VE applies result), `services/api/experiments.ts` |
+| `POST /api/v1/query` | OpenSearch query engine | Queries experiment/analytics data for AI context | Read-only; slow queries timeout silently | Opal chat context builder |
+| `POST /interactions/design-improvement` | Opal agent | AI generates HTML/CSS variation changes | Returns code injected via `applyInsertHTML()` — XSS risk if not sanitized | `modules/changes.ts` (`insertAdjacentHTML`) |
+| `POST /interactions/flag-variation` / `flag-variable` | Opal agent | AI suggests feature flag variation values | Modifies flag data via Frontdoor API | FX repo, Experimentation Client |
+| `POST /interactions/refined-test-idea` | Opal agent | AI generates A/B test ideas | Read-only suggestions | Idea Builder (Monolith) |
+| WebSocket `/ws` | `src/` websocket handler | Real-time Opal chat streaming | Keeps connection alive; reconnect on drop may duplicate messages | `lazy_opal_chat.tsx`, `useOpalPromptQueue.ts` |
+| BigQuery program reporting | `src/` analytics | Queries experiment results for AI summaries | External GCP dependency; failures degrade Summarize Variations feature | Monolith Results page |
+
+---
+
+## DOM Interaction Map
+
+> **Scope**: Selectors actively written, read, or mutated by VE codebase on customer website DOM.
+
+| Selector / Element | Operation | Module / Component | Risk | Notes |
+|---|---|---|---|---|
+| `[data-optly-{changeId}]` | Add attribute → Read → Remove | `modules/changes.ts` | Medium | Marks currently editing element; persists if VE crashes mid-edit |
+| `[data-optly-{changeId}-rearrange]` | Add → Remove | `modules/changes.ts` | Medium | Marks rearranged element; cleanup required after undo |
+| `#opti-frozen-styles` | Create `<style>` → Remove | `hooks/useSiteFreeze.ts` | High | Injected into customer `<head>` — conflicts with customer CSS resets or CSP |
+| `#${rootId}` (Shadow DOM host) | Create → Mount React app | `App.tsx` | Critical | VE root; removal = full editor crash |
+| `host.shadowRoot#${bottomBarId}` | Read height | `BottomBar.tsx` | Low | Used for layout calculation; fails gracefully if null |
+| `#${changeListDropdownId}` | Read (click-outside detection) | `BottomBar.tsx` | Low | Closes dropdown on outside click |
+| Dynamic user selector (from `selectorator.ts`) | Read (querySelectorAll) | `modules/selectorator.ts`, `modules/changes.ts` | High | Applies all changes on page load; invalid selector = silent skip |
+| `document` (via `insertAdjacentHTML`) | Insert HTML before/after/replace | `modules/changes.ts` (`applyInsertHTML`) | Critical | XSS vector if HTML not sanitized; affects all elements matching selector |
+| Inline `style` attribute on matched elements | Set / Remove | `modules/changes.ts` (`applyStyleChange`) | Medium | Overrides customer inline styles; not reversible without VE undo |
+| `window` (custom events) | `dispatchEvent` | `useOpalEvents.ts`, VE lifecycle | Medium | Event names must be unique to avoid collision with customer site events |
+
+---
+
+## Experiment Interaction Matrix
+
+> **Scope**: Cross-repo interaction pairs — VE ↔ Monolith ↔ Opal. Identifies conflict zones for QA regression.
+
+| Interaction Pair | Type | Conflict Scenario | Severity | Test Strategy |
+|---|---|---|---|---|
+| **VE change apply** ↔ **Opal save-changes** | Race condition | User edits element in VE while Opal simultaneously POSTs `/interactions/save-changes` → `changeStore` receives two conflicting change sets | High | Test: Apply manual change, trigger Opal change same element, verify last-write-wins and no duplicate changes |
+| **window.React (VE)** ↔ **Customer site React** | Module Federation conflict | Customer site already loads React; VE `provideToShareScope` overwrites `window.React` → customer React components re-render or break | High | Test: Load VE on customer site with React; verify customer components still render after VE mount |
+| **window.optimizely.get()** ↔ **Snippet load timing** | Timing / null ref | VE `change_handler.js` calls `window.optimizely.get('client-change-applier')` before snippet finishes loading → `TypeError: Cannot read properties of undefined` | Critical | Test: Slow network snippet load; verify VE handles null gracefully |
+| **postMessage (Monolith → VE)** ↔ **CSP policy** | Origin mismatch | Customer site CSP blocks iframe postMessage from Monolith origin → VE never receives init token → auth fails | Critical | Test: Customer site with strict CSP; verify error message shown (CJS-11056 CSP detection) |
+| **sessionStorage token** ↔ **Opal save-changes** | Auth expiry | OAuth token expires during long Opal session (>55 min); `save-changes` POST returns 401 → changes lost | High | Test: Mock token expiry mid-Opal session; verify retry or user prompt shown |
+| **#opti-frozen-styles** ↔ **Customer CSS animations** | DOM mutation conflict | VE injects `overflow: hidden` freeze style → customer page CSS animations/transitions freeze mid-state | Medium | Test: Customer page with CSS scroll animations; verify VE freeze/unfreeze restores state |
+| **selectorator.ts selector** ↔ **Dynamic customer DOM** | DOM instability | Customer page re-renders via SPA framework (React/Vue/Angular) after VE generates selector → selector no longer matches → change not applied | High | Test: SPA customer site (React Router); navigate between pages, verify changes persist on correct elements |
+| **insertAdjacentHTML** ↔ **Customer site scripts** | XSS / script injection | HTML change contains `<script>` tag → inserted into customer DOM → executes in customer context | Critical | Test: Attempt to insert `<script>alert(1)</script>` via InsertHTML editor; verify blocked or sanitized |
+| **VE undo/redo** ↔ **Opal-applied changes** | State mismatch | User undoes Opal-generated change after VE applies it → `changeStore` removes change but Opal `save-changes` already persisted to API → UI and API out of sync | High | Test: Opal applies change → user undoes → verify API synced (change removed from variation) |
+| **window.localStorage (Opal URLs)** ↔ **Environment switch** | Stale config | QA switches from `inte` to `prep` environment; localStorage retains old Opal URL → Opal connects to wrong environment | Medium | Test: Switch environment; verify Opal Chat connects to correct endpoint |
+| **Shadow DOM VE root** ↔ **Customer site document.querySelector** | Selector isolation | Customer site analytics script calls `document.querySelector('.opti-*')` → fails to find VE elements inside Shadow DOM → analytics events not fired | Low | Test: Customer site with analytics selectors for VE elements; verify graceful miss |
+| **MVT sections API** (`/sections/{id}`) ↔ **VE changeStore** | Wrong endpoint | A/B experiment logic accidentally calls A/B endpoint for MVT section change → 404 or wrong data written | High | Test: MVT experiment; verify all changes use `/v2/experiments/sections/{sectionId}` not `/v2/experiments/{id}` |
+| **Opal WebSocket** ↔ **VE page navigation** | Connection drop | User switches page in VE (PageSwitcher) during active Opal streaming → WebSocket drops → partial AI response applied | Medium | Test: Start Opal generation → switch page mid-stream → verify no partial/corrupt changes applied |

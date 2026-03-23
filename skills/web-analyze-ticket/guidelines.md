@@ -1,104 +1,175 @@
-# Guidelines — web-analyze-ticket (Web Experimentation Override)
+# Ticket Analysis Guidelines
 
-> **Purpose**: VE-specific additions cho common skill `web-analyze-ticket`.
-> **Extends**: `episerver/claude-qa-skills` skill cung ten.
-> **Last Updated**: 2026-03-20
+Detailed reference material and examples beyond the workflow in SKILL.md.
 
 ---
 
-## Reading Workflow (bat buoc theo thu tu)
+## 1. Ticket Pattern Recognition
 
-1. Doc `context/ve-CLAUDE.md` Section 1 (Architecture — data flow path)
-2. Doc `context/ve-CLAUDE.md` Section 2 (Critical paths — map ticket to test flows)
-3. Doc `context/ve-CLAUDE.md` Section 3 (QA Standards — coverage requirements)
-4. Doc `context/ve-CLAUDE.md` Section 4 (JIRA mapping — complexity assessment)
-5. Doc `docs/CROSS_REPO_IMPACT_INDEX.md` — trace 4 directions per component
-6. Doc `docs/UI_Screenshots_Analysis.md` — correct Monolith screen expected results
-7. Doc `context/cross-repo-flows.md` — cross-repo verification flows
-8. Apply 5-Dimension checklist (xem ben duoi)
+**Common ticket patterns and their testing implications:**
 
----
-
-## 5-Dimension Checklist (BAT BUOC moi ticket VE)
-
-### D1 — Status Coverage (6 trang thai)
-```
-Draft              -> edit OK, + button hien
-Running            -> read-only, + button an
-Paused             -> read-only, + button an
-Concluded          -> read-only, + button an
-Concluded+Deployed -> read-only, + button an
-Archived           -> read-only, + button an
-```
-Moi tinh nang moi can TC cho CA 6 trang thai.
-
-### D2 — Cross-Repo Monolith Screens (sau VE -> API -> Monolith)
-Sau khi VE action, verify tren cac screens nay:
-- Variations tab (1.1.3.2): variation list, orange dot, traffic %
-- Summary > Variations (1.1.3.1): ten + %
-- Design > Traffic Allocation: per-variation % slider
-- Settings > API Names: numeric ID (KHONG snake_case cho variation)
-- Settings > History: change log entry
-
-### D3 — VE Feature Interactions
-- Interactive mode (Alt/Option key) on/off
-- Page switcher khi co multiple pages
-- Unsaved changes warning khi switch variation
-- Changes list (ellipsis tren active tab)
-
-### D4 — Multiple Saved Pages
-- TC voi 1 page (single page experiment)
-- TC voi 2+ saved pages (page switching behavior)
-
-### D5 — Experiment Types
-- A/B Test
-- MAB (Multi-Armed Bandit)
-- MVT (khac endpoint: `/v2/experiments/sections/{sectionId}`)
-- Campaign (Experiences, khong phai Variations)
+| Pattern | What to Expect | Testing Focus |
+|---------|---------------|---------------|
+| **Story** | New feature — new code, new UI, new tests needed | Full coverage: happy path, validation, edge cases |
+| **Bug** | Fix for existing issue | Regression, verify the fix, check edge cases |
+| **Task** | Refactoring or config change | No-regression, verify behavior preserved |
+| **Sub-task** | Part of a larger story — check parent for full context | Integration with sibling tasks |
 
 ---
 
-## Anti-Patterns (TUYET DOI TRANH)
+## 2. Epic Signals
 
-1. **KHONG** tin JIRA screenshots lam proof of implementation -> doc `*.tsx` source code
-2. **KHONG** dung tai API call -> trace forward den Monolith display screens (D2)
-3. **KHONG** viet status TCs tu bo nho -> enum tu D1 tren
-4. **KHONG** test features in isolation -> doc D3 (Interaction Bar interactions)
-5. **KHONG** assume single-page -> luon them multi-page TC khi VariationsList/PageSwitcher involved
-6. **KHONG** viet "auto-generated snake_case API name" cho variations -> numeric IDs only
+**What to look for in epic children:**
+
+| Signal | Meaning |
+|--------|---------|
+| Multiple tickets with same label | Feature area is being actively developed |
+| Bug tickets in the epic | Known issues — avoid duplicating test cases |
+| Closed tickets | Previously tested areas — focus on integration |
+| `Requires_QA` label | Other tickets also need testing — look for interactions |
 
 ---
 
-## Key Facts VE (khong can tra lai)
+## 3. Identifying Hidden Changes in PRs
 
-### VariationsList.tsx
-- CreateVariation: + button -> inline input (fake TabNav.Tab) -> Enter/Escape/X
-- `verifyAction()` goi truoc khi CREATE hoac SWITCH variation (unsaved changes warning)
-- `isLayerReadOnly()` an + button khi: Running/Paused/Concluded/Archived
-- `isSaving` hien Spinner thay the tat ca variation tabs
-- Segment events: `variation_add_started` (click +), `variation_add_created` (Enter), `variation_add_canceled` (Escape/X)
-- ChangeList.tsx: ellipsis tren active tab = Changes dropdown (KHONG phai Rename/Duplicate/Delete)
+PRs often contain changes beyond the ticket scope. Look for these patterns:
 
-### API Endpoints
+- **Import reordering**: Cosmetic, no testing needed
+- **Event name changes**: Behavior change, needs verification
+- **Removing parameters from function calls**: May indicate a refactoring — check if data is moved elsewhere (e.g., to global properties)
+- **Adding new function calls**: New behavior being introduced
+- **Store modifications**: Can have cascading effects on many components
+
+**Example of a hidden change:**
 ```
-A/B, MAB, Campaign : PUT /v2/experiments/{id}
-MVT                : PUT /v2/experiments/sections/{sectionId}  <- KHAC
-Events             : GET/POST/PUT /api/v1/projects/{id}/events
-Views              : GET/PUT /api/v1/views
+Ticket says: "Add thread_id to save_all_opal event"
+PR actually does:
+  1. Adds thread_id to save_all_opal (as requested)
+  2. Adds thread_id to undo_all_opal (related)
+  3. Refactors ALL tracking to use global properties (broad change!)
+  4. Removes experiment_id from 10 individual calls
+  5. Adds new opal_apply_change event (not mentioned in ticket)
 ```
 
-### Monolith Screen Facts (verified tu UI_Screenshots_Analysis.md)
+In this example, testing ONLY the ticket AC would miss items 3-5.
 
-**Design > Traffic Allocation (dedicated page):**
-- Liet ke tung variation theo TEN voi % input + "Stop" button
-- Expected Result: "Hero Banner Change appears in Variation Traffic Distribution with correct %"
+### File Type Classification
 
-**Plan > Summary:**
-- Variations section: TEN + traffic % per variation
-- Traffic Allocation section: Distribution mode + overall visitor % ONLY (KHONG per-variation)
-- Day la 2 sections KHAC NHAU tren cung 1 trang
+| File type | What to look for | Test implication |
+|-----------|-----------------|-----------------|
+| `*.tsx` / `*.jsx` (Components) | New UI elements, changed props, event handlers | Verify rendering, user interactions |
+| `*Store.ts` (Stores) | New state fields, changed actions, new side effects | Verify state transitions, data flow |
+| `*api/*.ts` (Services) | New endpoints, changed request/response format | Verify API integration |
+| `*.test.*` (Tests) | Changed assertions, new test scenarios | Understand what devs already verified |
+| `constants.ts` / `enums.ts` | New values, renamed constants | Verify downstream usage |
+| `*.module.scss` (Styles) | Visual changes | Visual verification needed |
 
-**Settings > API Names:**
-- Variations: TEN + numeric ID (vi du: "Variation #2" -> ID: 6274013178101760)
-- KHONG co snake_case API name cho variations
-- Chi Events va Pages moi co snake_case
+---
+
+## 4. Verification Methods by Category
+
+Always include HOW to verify each test case. Use these methods per category:
+
+### Tracking / Analytics
+- **How to verify**: Browser DevTools > Network tab, filter for Segment API calls
+- **What to check**: Event name format, property values, property presence
+
+### UI / Visual
+- **How to verify**: Visual inspection in the application
+- **What to check**: Element visibility, correct text, proper styling
+
+### State Management
+- **How to verify**: React DevTools, functional testing (trigger state change, verify effect)
+- **What to check**: State transitions, data persistence, cross-component effects
+
+### API / Services
+- **How to verify**: Network tab, API response inspection
+- **What to check**: Request format, response handling, error states
+
+### Configuration
+- **How to verify**: Test with flag on/off, different environments
+- **What to check**: Feature availability, correct environment URLs
+
+### Business Logic
+- **How to verify**: Functional testing, edge cases
+- **What to check**: Input/output correctness, error handling
+
+### Verification Tools Summary
+
+| Category | Primary Method | Tools |
+|----------|---------------|-------|
+| Tracking events | Network tab, filter `segment.io` or `api.segment.io` | DevTools > Network |
+| Event properties | Inspect request payload in Network tab | DevTools > Network > Preview |
+| UI rendering | Visual inspection | Browser |
+| State changes | Trigger action, verify effect in UI | Browser + React DevTools |
+| API calls | Network tab, inspect request/response | DevTools > Network |
+| Feature flags | Test with flag on and off | Optimizely dashboard |
+
+---
+
+## 5. Writing Good Test Cases
+
+**Each test case should answer:**
+1. **WHAT** am I testing? (Clear title)
+2. **HOW** do I test it? (Steps or verification method)
+3. **WHAT** do I expect? (Specific expected result)
+4. **WHY** is this important? (Priority justification)
+
+**Good test case example:**
+```
+| # | Test Case | What to verify |
+|---|-----------|----------------|
+| 1 | save_all_opal has thread_id | Click "Save All" on OpalPreviewBanner.
+|   |                             | Verify Segment event EXP - VE - save_all_opal
+|   |                             | includes thread_id with a valid non-empty value |
+```
+
+**Bad test case example:**
+```
+| # | Test Case | What to verify |
+|---|-----------|----------------|
+| 1 | Test saving | Check that saving works |
+```
+
+Why bad: vague title, no specific verification, no mention of what "works" means.
+
+---
+
+## 6. Anti-Patterns
+
+### Testing Only the AC
+**Problem**: Missing broader changes that the PR introduced
+**Solution**: Always read the PR diffs, not just the ticket
+
+### Making Everything P0
+**Problem**: No prioritization means everything is "critical"
+**Solution**: P0 should be 2-3 items maximum. If the ticket fails P0, it's not done.
+
+### Vague Verification
+**Problem**: "Check that it works" — what does "works" mean?
+**Solution**: Be specific: "Verify the Segment event payload contains `thread_id` with a non-empty string value"
+
+### Ignoring Follow-up PRs
+**Problem**: The original PR may have been followed by fixes
+**Solution**: Search git log for related commits after the main PR merge date
+
+### Not Reading the Epic
+**Problem**: Missing context about the broader feature
+**Solution**: Always fetch the epic and scan sibling tickets for context
+
+---
+
+## 7. Quality Checklist
+
+Before presenting the analysis:
+
+- [ ] All PRs (including follow-ups) have been read and analyzed
+- [ ] Changes are categorized (tracking, UI, state, API, etc.)
+- [ ] Scope of impact is identified (isolated, moderate, broad)
+- [ ] Discrepancies between AC and actual implementation are noted
+- [ ] Test cases are prioritized (P0 < P1 < P2 < P3)
+- [ ] Each test case has a specific verification method
+- [ ] Regression areas are identified
+- [ ] P0 test cases are minimal and focused (2-5 items)
+- [ ] Total test count is reasonable (10-20 for a typical ticket)
+- [ ] No vague language ("check it works", "test saving")

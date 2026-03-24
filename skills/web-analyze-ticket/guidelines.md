@@ -135,6 +135,43 @@ Why bad: vague title, no specific verification, no mention of what "works" means
 
 ---
 
+## 7. Full Flow TC — Mandatory Output (Added CJS-10818 retrospective 2026-03-24)
+
+> **Problem:** Analysis reads FULL_FLOW_SPEC.md to identify regression scope nhưng KHÔNG translate thành instruction "Full Flow TC cần bao gồm Results page" cho web-create-test-cases.
+
+### MANDATORY: Analysis output phải include Full Flow TC instruction
+
+Sau khi hoàn thành analysis, LUÔN thêm block này vào output:
+
+```
+**Full Flow TC Required:**
+- Type: [Standard VE | Event Full Flow | Tracking]
+- Reason: [keyword triggered this]
+- Must include Results page: [YES/NO]
+- Checkpoints: [list từ FULL_FLOW_SPEC.md]
+```
+
+### Trigger — Event Full Flow (Results page REQUIRED)
+
+| Keyword trong ticket | PHẢI bao gồm Results page |
+|---|---|
+| create event, click event, event creation | YES — CP-9 + CP-10 |
+| add metric, metric, conversion | YES — CP-10 |
+| event tracking, track click | YES — CP-9 + CP-10 |
+| result page, visitor count, event count | YES — CP-10 |
+
+### Anti-Pattern (KHÔNG được lặp lại)
+
+**SAI:**
+> "Full Flow Focus: Phase 1 (Events) → generated 47 TCs"
+> *(Missing: không có instruction nào để web-create-test-cases biết cần Results page)*
+
+**ĐÚNG:**
+> "Full Flow TC Required: Type = Event Full Flow. Must include Results page = YES.
+> Checkpoints: CP-9 (live site network request 204) + CP-10 (Results page event count)"
+
+---
+
 ## 6. Anti-Patterns
 
 ### Testing Only the AC

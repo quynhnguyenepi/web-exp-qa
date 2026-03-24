@@ -383,12 +383,51 @@ Expected Results:
 
 ### Rule 6: Full Flow TC (Critical) — format đặc biệt
 
+> ⚠️ **MANDATORY FIRST STEP:** Trước khi viết Full Flow TC, xác định TYPE dựa trên ticket keywords.
+
+#### Bước 1: Chọn Full Flow Type
+
+| Ticket touches... | Full Flow Type | Checkpoints bắt buộc |
+|---|---|---|
+| CSS change, DOM change, style, HTML, redirect, visual change | **Standard VE Full Flow** | 3 CPs: preview variation, QA ball, live site |
+| **events, click event, create event, event tracking, metric, conversion, result page** | **Event Full Flow** | CP-9 (live site network) + **CP-10 (Results page)** |
+| Segment tracking, analytics | **Tracking Full Flow** | Network tab verification |
+
+> **CRITICAL RULE — Added after CJS-10818 retrospective (2026-03-24):**
+> Nếu ticket liên quan đến events/metrics → Full flow **PHẢI bao gồm Results page**. Không được dừng ở "live site". Đây là lỗi hay bị bỏ sót nhất.
+
+---
+
+#### Standard VE Full Flow
+
 Full Flow TC có Expected Results chỉ tại 3 checkpoints:
 1. Preview variation (step số X)
 2. Preview experiment / QA ball (step số Y)
 3. Live website sau publish (step cuối)
 
 Không có Expected Results cho các setup steps.
+
+---
+
+#### Event Full Flow (BẮT BUỘC khi ticket liên quan events/metrics)
+
+```
+Steps:
+1. [Tạo event] — trong simplified VE hoặc normal VE tùy ticket
+2. Add event làm metric cho experiment
+3. [Make VE change nếu cần] → Save
+4. Publish experiment → Status Running
+5. Mở live website incognito, force bucket vào variation
+6. Click element được track bởi event
+7. Kiểm tra Results page                    ← KHÔNG ĐƯỢC BỎ QUA
+
+Expected Results:
+6. Network tab: POST Event request → 204, đúng event key  ← CP-9
+7. Results page: Unique conversions tăng đúng.
+   Visitor count đúng.                                     ← CP-10
+```
+
+> Validated từ CJS-10818 QA comment: "Event count Unique conversions per visitor it is correct, visitor count correctly."
 
 ---
 
